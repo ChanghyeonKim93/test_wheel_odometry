@@ -13,7 +13,6 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR}/)
 
 set(SRC ${SRC} 
-  #src/numerical_integrator/runge_kutta_integrator_fourth_order.cc
 )
 
 # TEST
