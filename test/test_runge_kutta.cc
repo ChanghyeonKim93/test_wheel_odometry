@@ -7,12 +7,12 @@
 using namespace numerical_integrator;
 
 int main() {
-  constexpr double L = 0.65;  // [m]
+  constexpr double l = 0.65;  // [m]
   constexpr double r = 0.12;  // [m]
   std::shared_ptr<DifferentialEquation> differential_equation =
       std::make_shared<SizedDifferentialEquation<
           TwoWheeledRobotDifferentialEquationFunctor, 3, 2>>(
-          std::make_shared<TwoWheeledRobotDifferentialEquationFunctor>(L, r));
+          std::make_shared<TwoWheeledRobotDifferentialEquationFunctor>(l, r));
 
   RungeKuttaIntegrator<3, 2> integrator(differential_equation);
 
