@@ -188,7 +188,6 @@ int main() {
   plt::pause(0.001);  // show figure
 
   // Set sensor noise (wheel encoders, IMU angular rates)
-
   // Wheel encoders
   const double pulse_per_revolution = 19.0 * 49.0 * 4.0;
   const double dt_encoder = 0.01;  // 10 ms
@@ -206,6 +205,10 @@ int main() {
   const double noise_acc = rate_noise_spectral_density / 2.0;
   const double noise_body_yaw_rate_by_imu =
       rate_noise_spectral_density / 180.0 * M_PI * std::sqrt(0.005) * 2.0;
+
+  const double bias_acc_x = -0.001;
+  const double bias_acc_y = 0.003;
+  const double bias_gyro_yaw_rate = 0.001;
 
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -271,9 +274,10 @@ int main() {
 
     ImuData imu_data;
     imu_data.timestamp = state.timestamp;
-    imu_data.acc_x = axay_at_body.x() + dist_acc(gen);
-    imu_data.acc_y = axay_at_body.y() + dist_acc(gen);
-    imu_data.yaw_rate = state.yaw_rate_at_body + dist_yaw_rate(gen);
+    imu_data.acc_x = axay_at_body.x() + dist_acc(gen) + bias_acc_x;
+    imu_data.acc_y = axay_at_body.y() + dist_acc(gen) + bias_acc_y;
+    imu_data.yaw_rate =
+        state.yaw_rate_at_body + dist_yaw_rate(gen) + bias_gyro_yaw_rate;
 
     imu_data_list.push_back(imu_data);
   }
@@ -310,6 +314,8 @@ int main() {
   plt::grid(true);    // show grid
   plt::show();        // show figure
   plt::pause(0.001);  // show figure
+
+  // Implement error state kalman filter
 
   return 0;
 }
