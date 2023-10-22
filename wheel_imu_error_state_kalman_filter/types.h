@@ -16,6 +16,9 @@ using Mat22 = Eigen::Matrix<double, 2, 2>;
 using Mat33 = Eigen::Matrix<double, 3, 3>;
 using Mat99 = Eigen::Matrix<double, 9, 9>;
 
+const Mat22 I22 = Mat22::Identity();
+const Mat99 I99 = Mat99::Identity();
+
 #define GET_BLOCK21(matrix, i, j) ((matrix).block<2, 1>(2 * i, 0))
 #define GET_BLOCK22(matrix, i, j) ((matrix).block<2, 2>(2 * i, 2 * j))
 
@@ -194,8 +197,54 @@ class ImuMeasurement {
   Vec3 data_;  // acc_x, acc_y, yaw_rate
 };
 
-class ImuMeasurementNoise {};
-class WheelEncoderMeasurementNoise {};
+class ImuMeasurementNoise {
+ public:
+  ImuMeasurementNoise() : data_(Vec3::Zero()) {}
+  ImuMeasurementNoise(const double acc_x_noise, const double acc_y_noise,
+                      const double yaw_rate_noise) {
+    data_ << acc_x_noise, acc_y_noise, yaw_rate_noise;
+    noise_covariance_matrix_for_acc_xy_.setZero();
+    noise_covariance_matrix_for_acc_xy_(0, 0) = acc_x_noise * acc_x_noise;
+    noise_covariance_matrix_for_acc_xy_(1, 1) = acc_y_noise * acc_y_noise;
+    noise_covariance_matrix_for_gyro_z_ = yaw_rate_noise * yaw_rate_noise;
+  }
+
+  // Getter
+  Mat22 GetAccelerometerXYNoiseCovarianceMatrix() const {
+    return noise_covariance_matrix_for_acc_xy_;
+  }
+  double GetGyroscopeZNoiseCovariance() const {
+    return noise_covariance_matrix_for_gyro_z_;
+  }
+
+ private:
+  Vec3 data_;
+  Mat22 noise_covariance_matrix_for_acc_xy_;
+  double noise_covariance_matrix_for_gyro_z_;
+};
+
+class WheelEncoderMeasurementNoise {
+ public:
+  WheelEncoderMeasurementNoise() : data_(Vec2::Zero()) {}
+  WheelEncoderMeasurementNoise(const double left_wheel_angular_rate_noise,
+                               const double right_wheel_angular_rate_noise) {
+    data_ << left_wheel_angular_rate_noise, right_wheel_angular_rate_noise;
+    noise_covariance_matrix_for_wheel_angular_rate_left_right_ = Mat22::Zero();
+    noise_covariance_matrix_for_wheel_angular_rate_left_right_(0, 0) =
+        left_wheel_angular_rate_noise * left_wheel_angular_rate_noise;
+    noise_covariance_matrix_for_wheel_angular_rate_left_right_(1, 1) =
+        right_wheel_angular_rate_noise * right_wheel_angular_rate_noise;
+  }
+
+  // Getter
+  Mat22 GetLeftRightWheelAngularRateCovarianceMatrix() const {
+    return noise_covariance_matrix_for_wheel_angular_rate_left_right_;
+  }
+
+ private:
+  Vec2 data_;
+  Mat22 noise_covariance_matrix_for_wheel_angular_rate_left_right_;
+};
 
 }  // namespace error_state_kalman_filter
 }  // namespace filter
