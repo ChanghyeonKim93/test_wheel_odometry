@@ -21,3 +21,9 @@ target_link_libraries(${CMAKE_PROJECT_NAME}_test_runge_kutta ${Eigen3_LIBRARIES}
 
 add_executable(${CMAKE_PROJECT_NAME}_test_wheel_imu_odometry test/test_wheel_imu_odometry.cc ${SRC})
 target_link_libraries(${CMAKE_PROJECT_NAME}_test_wheel_imu_odometry ${Eigen3_LIBRARIES} python3.8)
+
+add_executable(${CMAKE_PROJECT_NAME}_test_eskf test/test_eskf.cc 
+  wheel_imu_error_state_kalman_filter/wheel_imu_error_state_kalman_filter.cc 
+  ${SRC})
+target_link_libraries(${CMAKE_PROJECT_NAME}_test_eskf ${Eigen3_LIBRARIES} python3.8)
+

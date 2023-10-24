@@ -13,35 +13,46 @@ class WheelImuErrorStateKalmanFilter {
  public:
   struct Parameters {
     struct {
-      double wheel_radius_in_meter{0.0};
-      double distance_between_wheels{0.0};
+      double wheel_radius_in_meter{0.0};    // [m]
+      double distance_between_wheels{0.0};  // [m]
     } wheeled_robot_properties;
     struct {
       struct {
-        double left_wheel_angular_rate{0.0};
-        double right_wheel_angular_rate{0.0};
-      } wheel_encoder;
+        struct {
+          double left_angular_rate{0.0};
+          double right_angular_rate{0.0};
+        } wheel_encoder;
+        struct {
+          double acc_x{0.0};
+          double acc_y{0.0};
+          double gyro_z{0.0};
+        } imu;
+      } measurement;
       struct {
-        double acc_x{0.0};
-        double acc_y{0.0};
-        double gyro_z{0.0};
-      } imu;
+        double position_x{0.01};
+        double position_y{0.01};
+        double velocity_x{0.02};
+        double velocity_y{0.02};
+        double yaw{0.01};
+        double yaw_rate{0.01};
+        double acc_bias_x{1e-5};
+        double acc_bias_y{1e-5};
+        double gyro_bias_z{1e-5};
+      } error_state_process;
     } noise;
-
     struct {
       struct {
-        double acc_x_bias{0.0};
-        double acc_y_bias{0.0};
-        double gyro_z_bias{0.0};
+        double acc_x_bias{0.0};   // [m/s^2]
+        double acc_y_bias{0.0};   // [m/s^2]
+        double gyro_z_bias{0.0};  // [rad/s]
       } imu;
-    } bias;
-
+    } initial_bias;
     struct {
-      double max_time_difference;
-      double max_position_change;
-      double max_angle_change;
-      double max_estimated_velocity;
-      double max_estimated_angular_rate;
+      double max_time_difference{0.05};         // [s]
+      double max_position_change{0.1};          // [m]
+      double max_angle_change{0.2};             // [rad]
+      double max_estimated_velocity{4.0};       // [m/s]
+      double max_estimated_angular_rate{10.0};  // [rad/s]
     } emergency_reset_rule;
   };
 
@@ -49,14 +60,30 @@ class WheelImuErrorStateKalmanFilter {
   explicit WheelImuErrorStateKalmanFilter(const Parameters& parameters);
 
   void Reset();
+  Mat99 CalculateErrorStateTransitionMatrix(
+      const double previous_timestamp,
+      const NominalState& previous_nominal_state,
+      const double current_timestamp, const ImuMeasurement& imu_measurement);
 
-  void PredictNominalStateByImuDeadReckoning(const double timestamp,
-                                             const Vec2& acc_xy,
-                                             const double gyro_z);
-  void PredictErrorStateByImuDeadReckoning(const double timestamp,
-                                           const Vec2& acc_xy,
-                                           const double gyro_z);
-  void EstimateErrorStateByWheelEncoderMeasurements();
+  void PredictErrorStateByImuDeadReckoning(
+      const double previous_timestamp, const ErrorState& previous_error_state,
+      const NominalState& previous_nominal_state,
+      const ErrorStateCovariance& previous_error_state_covariance,
+      const double current_timestamp, const ImuMeasurement& imu_measurement,
+      ErrorState* predicted_error_state,
+      ErrorStateCovariance* predicted_error_state_covariance);
+  void PredictNominalStateByImuDeadReckoning(
+      const double previous_timestamp,
+      const NominalState& previous_nominal_state,
+      const double current_timestamp, const ImuMeasurement& imu_measurement,
+      NominalState* predicted_nominal_state);
+
+  void EstimateNominalStateByWheelEncoderMeasurement(
+      const NominalState& predicted_nominal_state,
+      const ErrorState& predicted_error_state,
+      const ErrorStateCovariance& predicted_error_state_covariance,
+      const WheelEncoderMeasurement& wheel_encoder_measurement,
+      ErrorState* reset_error_state, NominalState* estimated_nominal_state);
 
   const NominalState& GetNominalState() const;
   const ErrorState& GetErrorState() const;
@@ -65,23 +92,19 @@ class WheelImuErrorStateKalmanFilter {
   void ShowAll();
 
  private:
-  void SetWheelEncoderNoise();
-  void SetImuNoise();
-  void SetInitialImuBias();
-
- private:
+  bool is_initialized_;
   Parameters parameters_;
 
-  NominalState nominal_state_;
   ErrorState error_state_;
+  NominalState nominal_state_;
   ErrorStateCovariance error_state_covariance_;
 
-  ImuMeasurement imu_measurement_;
-  WheelEncoderMeasurement wheel_encoder_measurement_;
-
-  ErrorStateProcessNoise process_noise_of_error_state_;
+  ErrorStateProcessNoise error_state_process_noise_;
   WheelEncoderMeasurementNoise wheel_encoder_measurement_noise_;
   ImuMeasurementNoise imu_measurement_noise_;
+
+  Mat22 B_;
+  Mat22 iB_;
 };
 
 }  // namespace error_state_kalman_filter
