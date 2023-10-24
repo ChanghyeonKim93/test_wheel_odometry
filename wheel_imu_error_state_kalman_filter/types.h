@@ -225,6 +225,7 @@ class WheelEncoderMeasurement {
   double GetTimestamp() const { return timestamp_; }
   double GetLeftAngularRate() const { return data_.x(); }
   double GetRightAngularRate() const { return data_.y(); }
+  // ### Vector a_l, a_r
   Vec2 GetLeftAndRightAngularRateVector() const { return data_; }
 
  private:
@@ -251,11 +252,11 @@ class ImuMeasurementNoise {
     gyro_z_noise_ = gyro_z_noise;
     noise_covariance_matrix_for_gyro_z_ = gyro_z_noise_ * gyro_z_noise_;
   }
-  // Matrix R (2x2 acc xy part)
+  // ### Matrix R (2x2 acc xy part)
   Mat22 GetAccXYNoiseCovarianceMatrix() const {
     return noise_covariance_matrix_for_acc_xy_;
   }
-  // Matrix R(1x1 gyro z part)
+  // ### Matrix R(1x1 gyro z part)
   double GetGyroZNoiseCovariance() const {
     return noise_covariance_matrix_for_gyro_z_;
   }
@@ -284,7 +285,7 @@ class WheelEncoderMeasurementNoise {
         right_angular_rate_noise_ * right_angular_rate_noise_;
   }
 
-  // Getter
+  // ### Matrix diag([n_al^2, n_ar^2])
   Mat22 GetLeftRightAngularRatesCovarianceMatrix() const {
     return noise_covariance_matrix_;
   }
