@@ -174,7 +174,7 @@ class ErrorStateProcessNoise {
     data_(6, 6) = noise_dba_.x() * noise_dba_.x();
     data_(7, 7) = noise_dba_.y() * noise_dba_.y();
   }
-  void SetAGyroZBiasErrorProcessNoise(const double noise) {
+  void SetGyroZBiasErrorProcessNoise(const double noise) {
     noise_dbg_ = noise;
     data_(8, 8) = noise_dbg_ * noise_dbg_;
   }

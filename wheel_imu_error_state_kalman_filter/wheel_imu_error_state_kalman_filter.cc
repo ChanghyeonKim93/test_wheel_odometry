@@ -8,9 +8,7 @@ namespace error_state_kalman_filter {
 
 WheelImuErrorStateKalmanFilter::WheelImuErrorStateKalmanFilter(
     const Parameters& parameters)
-    : is_initialized_(false),
-      parameters_(parameters) {  // initialize error covariance matrix
-
+    : parameters_(parameters) {  // initialize error covariance matrix
   // Initialize Error State
   error_state_.SetZero();
 
@@ -38,7 +36,7 @@ WheelImuErrorStateKalmanFilter::WheelImuErrorStateKalmanFilter(
   error_state_process_noise_.SetAccXYBiasErrorProcessNoise(
       {initial_error_state_process_noise.acc_bias_x,
        initial_error_state_process_noise.acc_bias_y});
-  error_state_process_noise_.SetAGyroZBiasErrorProcessNoise(
+  error_state_process_noise_.SetGyroZBiasErrorProcessNoise(
       initial_error_state_process_noise.gyro_bias_z);
 
   // Initialize Imu Measurement Noises
@@ -63,6 +61,50 @@ WheelImuErrorStateKalmanFilter::WheelImuErrorStateKalmanFilter(
 
 void WheelImuErrorStateKalmanFilter::Reset() {
   // TODO(@): implement reset
+}
+
+void WheelImuErrorStateKalmanFilter::
+    PredictNominalAndErrorStatesByImuMeasurement(
+        const double current_timestamp, const ImuMeasurement& imu_measurement) {
+  NominalState predicted_nominal_state;
+  ErrorState predicted_error_state;
+  ErrorStateCovariance predicted_error_state_covariance;
+
+  std::cout << "   predicted_error_state(prev): "
+            << predicted_error_state.GetErrorStateVector().transpose()
+            << std::endl;
+
+  PredictNominalStateByImuDeadReckoning(
+      nominal_state_.GetTimestamp(), nominal_state_, current_timestamp,
+      imu_measurement, &predicted_nominal_state);
+  PredictErrorStateByImuDeadReckoning(
+      nominal_state_.GetTimestamp(), error_state_, nominal_state_,
+      error_state_covariance_, current_timestamp, imu_measurement,
+      &predicted_error_state, &predicted_error_state_covariance);
+
+  nominal_state_ = predicted_nominal_state;
+  error_state_ = predicted_error_state;
+  error_state_covariance_ = predicted_error_state_covariance;
+
+  std::cout << "   predicted_error_state(after): "
+            << error_state_.GetErrorStateVector().transpose() << std::endl;
+}
+
+void WheelImuErrorStateKalmanFilter::
+    EstimateNominalStateByWheelEncoderMeasurement(
+        const double current_timestamp,
+        const WheelEncoderMeasurement& wheel_encoder_measurement) {
+  NominalState estimated_nominal_state;
+  ErrorState reset_error_state;
+  ErrorStateCovariance estimated_error_state_covariance;
+  EstimateNominalStateByWheelEncoderMeasurementPrivate(
+      nominal_state_, error_state_, error_state_covariance_,
+      wheel_encoder_measurement, &reset_error_state,
+      &estimated_error_state_covariance, &estimated_nominal_state);
+
+  nominal_state_ = estimated_nominal_state;
+  error_state_ = reset_error_state;
+  error_state_covariance_ = estimated_error_state_covariance;
 }
 
 // ## Get `Exp(F0*dt)` matrix
@@ -112,12 +154,12 @@ void WheelImuErrorStateKalmanFilter::PredictErrorStateByImuDeadReckoning(
   const Mat99& exp_F0dt = CalculateErrorStateTransitionMatrix(
       previous_timestamp, previous_nominal_state, current_timestamp,
       imu_measurement);
-  const Vec9& predicted_error_state_vector =
-      exp_F0dt * error_state_.GetErrorStateVector();
+  const Vec9 predicted_error_state_vector =
+      exp_F0dt * previous_error_state.GetErrorStateVector();
 
   ErrorState predicted_error_state_in_function(current_timestamp,
                                                predicted_error_state_vector);
-  predicted_error_state->SetErrorState(predicted_error_state_in_function);
+  *predicted_error_state = predicted_error_state_in_function;
 
   const Mat99& Q = error_state_process_noise_.GetProcessNoiseMatrix();
   const Mat99& P_prev = previous_error_state_covariance.GetCovarianceMatrix();
@@ -141,17 +183,18 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
   const auto& am = imu_measurement.GetAccelerationVector();
   const auto gz = imu_measurement.GetYawRate();
 
-  const auto& v = nominal_state_.GetWorldVelocity();
-  const auto& ba = nominal_state_.GetAccXYBias();
-  const auto& bg = nominal_state_.GetGyroZBias();
+  const auto& v = previous_nominal_state.GetWorldVelocity();
+  const auto& ba = previous_nominal_state.GetAccXYBias();
+  const auto& bg = previous_nominal_state.GetGyroZBias();
 
   Vec9 derivative_of_previous_nominal_state;
-  derivative_of_previous_nominal_state << v, am - ba, gz - bg, O21, 0;
+  derivative_of_previous_nominal_state << v, R_world_to_imu * (am - ba),
+      gz - bg, O21, 0;
 
   // TODO(@): employ RK4
   // Note: below is the Euler integration.
   const auto& previous_nominal_state_vector =
-      nominal_state_.GetFullStateVector();
+      previous_nominal_state.GetFullStateVector();
   const Vec9& predicted_nominal_state_vector =
       previous_nominal_state_vector + dt * derivative_of_previous_nominal_state;
 
@@ -161,12 +204,14 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
 }
 
 void WheelImuErrorStateKalmanFilter::
-    EstimateNominalStateByWheelEncoderMeasurement(
+    EstimateNominalStateByWheelEncoderMeasurementPrivate(
         const NominalState& predicted_nominal_state,
         const ErrorState& predicted_error_state,
         const ErrorStateCovariance& predicted_error_state_covariance,
         const WheelEncoderMeasurement& wheel_encoder_measurement,
-        ErrorState* reset_error_state, NominalState* estimated_nominal_state) {
+        ErrorState* reset_error_state,
+        ErrorStateCovariance* estimated_error_state_covariance,
+        NominalState* estimated_nominal_state) {
   const Mat99& P_predicted =
       predicted_error_state_covariance.GetCovarianceMatrix();
   const Mat22& R = wheel_encoder_measurement_noise_
@@ -190,17 +235,19 @@ void WheelImuErrorStateKalmanFilter::
   const Mat99& P_estimated =
       (I99 - K * H) * P_predicted * (I99 - K * H).transpose() +
       K * R * K.transpose();
-  const Vec9& dX_estimated =
-      predicted_error_state.GetErrorStateVector() +
+  const Vec9 dX_update_vec =
       K * (z - H * predicted_nominal_state.GetFullStateVector());
+  const Vec9& dX_estimated =
+      predicted_error_state.GetErrorStateVector() + dX_update_vec;
 
   const Vec9& X_estimated =
       predicted_nominal_state.GetFullStateVector() + dX_estimated;
 
   *reset_error_state =
-      ErrorState(wheel_encoder_measurement.GetTimestamp(), Vec9::Zero());
+      ErrorState(wheel_encoder_measurement.GetTimestamp(), dX_update_vec);
   *estimated_nominal_state =
       NominalState(wheel_encoder_measurement.GetTimestamp(), X_estimated);
+  *estimated_error_state_covariance = ErrorStateCovariance(P_estimated);
 }
 
 const NominalState& WheelImuErrorStateKalmanFilter::GetNominalState() const {
@@ -214,6 +261,16 @@ const ErrorState& WheelImuErrorStateKalmanFilter::GetErrorState() const {
 const ErrorStateCovariance&
 WheelImuErrorStateKalmanFilter::GetErrorStateCovariance() const {
   return error_state_covariance_;
+}
+
+void WheelImuErrorStateKalmanFilter::ShowAll() {
+  std::cerr << "Nominal state: "
+            << nominal_state_.GetFullStateVector().transpose() << "\n";
+  std::cerr << "Error state: " << error_state_.GetErrorStateVector().transpose()
+            << "\n";
+  std::cerr << "P:\n"
+            << error_state_covariance_.GetCovarianceMatrix() << "\n\n"
+            << std::endl;
 }
 
 }  // namespace error_state_kalman_filter

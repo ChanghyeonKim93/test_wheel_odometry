@@ -13,8 +13,8 @@ class WheelImuErrorStateKalmanFilter {
  public:
   struct Parameters {
     struct {
-      double wheel_radius_in_meter{0.0};    // [m]
-      double distance_between_wheels{0.0};  // [m]
+      double wheel_radius_in_meter{0.075};  // [m]
+      double distance_between_wheels{0.5};  // [m]
     } wheeled_robot_properties;
     struct {
       struct {
@@ -29,12 +29,12 @@ class WheelImuErrorStateKalmanFilter {
         } imu;
       } measurement;
       struct {
-        double position_x{0.01};
-        double position_y{0.01};
-        double velocity_x{0.02};
-        double velocity_y{0.02};
-        double yaw{0.01};
-        double yaw_rate{0.01};
+        double position_x{0.001};
+        double position_y{0.001};
+        double velocity_x{0.002};
+        double velocity_y{0.002};
+        double yaw{0.001};
+        double yaw_rate{0.001};
         double acc_bias_x{1e-5};
         double acc_bias_y{1e-5};
         double gyro_bias_z{1e-5};
@@ -60,6 +60,20 @@ class WheelImuErrorStateKalmanFilter {
   explicit WheelImuErrorStateKalmanFilter(const Parameters& parameters);
 
   void Reset();
+
+  void PredictNominalAndErrorStatesByImuMeasurement(
+      const double current_timestamp, const ImuMeasurement& imu_measurement);
+  void EstimateNominalStateByWheelEncoderMeasurement(
+      const double current_timestamp,
+      const WheelEncoderMeasurement& wheel_encoder_measurement);
+
+  const NominalState& GetNominalState() const;
+  const ErrorState& GetErrorState() const;
+  const ErrorStateCovariance& GetErrorStateCovariance() const;
+
+  void ShowAll();
+
+ private:
   Mat99 CalculateErrorStateTransitionMatrix(
       const double previous_timestamp,
       const NominalState& previous_nominal_state,
@@ -78,21 +92,16 @@ class WheelImuErrorStateKalmanFilter {
       const double current_timestamp, const ImuMeasurement& imu_measurement,
       NominalState* predicted_nominal_state);
 
-  void EstimateNominalStateByWheelEncoderMeasurement(
+  void EstimateNominalStateByWheelEncoderMeasurementPrivate(
       const NominalState& predicted_nominal_state,
       const ErrorState& predicted_error_state,
       const ErrorStateCovariance& predicted_error_state_covariance,
       const WheelEncoderMeasurement& wheel_encoder_measurement,
-      ErrorState* reset_error_state, NominalState* estimated_nominal_state);
-
-  const NominalState& GetNominalState() const;
-  const ErrorState& GetErrorState() const;
-  const ErrorStateCovariance& GetErrorStateCovariance() const;
-
-  void ShowAll();
+      ErrorState* reset_error_state,
+      ErrorStateCovariance* estimated_error_state_covariance,
+      NominalState* estimated_nominal_state);
 
  private:
-  bool is_initialized_;
   Parameters parameters_;
 
   ErrorState error_state_;
@@ -103,6 +112,7 @@ class WheelImuErrorStateKalmanFilter {
   WheelEncoderMeasurementNoise wheel_encoder_measurement_noise_;
   ImuMeasurementNoise imu_measurement_noise_;
 
+ private:  // robot kinematics
   Mat22 B_;
   Mat22 iB_;
 };

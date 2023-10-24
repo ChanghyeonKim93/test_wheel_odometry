@@ -16,14 +16,14 @@ include_directories("/usr/include/python3.8")
 set(SRC ${SRC} 
 )
 
-add_executable(${CMAKE_PROJECT_NAME}_test_runge_kutta test/test_runge_kutta.cc ${SRC})
-target_link_libraries(${CMAKE_PROJECT_NAME}_test_runge_kutta ${Eigen3_LIBRARIES})
+add_executable(test_runge_kutta test/test_runge_kutta.cc ${SRC})
+target_link_libraries(test_runge_kutta ${Eigen3_LIBRARIES})
 
-add_executable(${CMAKE_PROJECT_NAME}_test_wheel_imu_odometry test/test_wheel_imu_odometry.cc ${SRC})
-target_link_libraries(${CMAKE_PROJECT_NAME}_test_wheel_imu_odometry ${Eigen3_LIBRARIES} python3.8)
+add_executable(test_data_generation test/test_data_generation.cc ${SRC})
+target_link_libraries(test_data_generation ${Eigen3_LIBRARIES} python3.8)
 
-add_executable(${CMAKE_PROJECT_NAME}_test_eskf test/test_eskf.cc 
+add_executable(test_eskf test/test_eskf.cc 
   wheel_imu_error_state_kalman_filter/wheel_imu_error_state_kalman_filter.cc 
   ${SRC})
-target_link_libraries(${CMAKE_PROJECT_NAME}_test_eskf ${Eigen3_LIBRARIES} python3.8)
+target_link_libraries(test_eskf ${Eigen3_LIBRARIES} python3.8)
 
