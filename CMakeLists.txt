@@ -22,6 +22,12 @@ target_link_libraries(test_runge_kutta ${Eigen3_LIBRARIES})
 add_executable(test_data_generation test/test_data_generation.cc ${SRC})
 target_link_libraries(test_data_generation ${Eigen3_LIBRARIES} python3.8)
 
+add_executable(test_data_plot test/test_data_plot.cc ${SRC})
+target_link_libraries(test_data_plot ${Eigen3_LIBRARIES} python3.8)
+
+add_executable(test_kf test/test_kf.cc ${SRC})
+target_link_libraries(test_kf ${Eigen3_LIBRARIES} python3.8)
+
 add_executable(test_eskf test/test_eskf.cc 
   wheel_imu_error_state_kalman_filter/wheel_imu_error_state_kalman_filter.cc 
   ${SRC})
