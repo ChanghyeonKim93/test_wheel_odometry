@@ -15,10 +15,6 @@ int main() {
   const double l = 0.5;    // [m]
   const double r = 0.075;  // [m]
 
-  Eigen::Matrix2d G;
-  G << r / 2, r / 2, (-r / l), (r / l);
-  const auto iG = G.inverse();
-
   std::vector<double> true_timestamp_list;
   std::vector<double> true_x_list;
   std::vector<double> true_y_list;

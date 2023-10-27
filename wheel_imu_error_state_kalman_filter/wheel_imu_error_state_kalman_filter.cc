@@ -46,9 +46,8 @@ WheelImuErrorStateKalmanFilter::WheelImuErrorStateKalmanFilter(
 
   // Initialize Wheel Encoder Measurement Noises
   const auto& wheel_encoder_noise = parameters_.noise.measurement.wheel_encoder;
-  wheel_encoder_measurement_noise_.SetLeftRightAngularRatesNoises(
-      wheel_encoder_noise.left_angular_rate,
-      wheel_encoder_noise.right_angular_rate);
+  wheel_encoder_measurement_noise_.SetVxAndYawRateNoises(
+      wheel_encoder_noise.vx_at_body, wheel_encoder_noise.yaw_rate_at_body);
 
   // Initialize wheel odometer kinematics
   const double l = parameters_.wheeled_robot_properties.distance_between_wheels;
@@ -66,17 +65,17 @@ void WheelImuErrorStateKalmanFilter::Reset() {
 void WheelImuErrorStateKalmanFilter::
     PredictNominalAndErrorStatesByImuMeasurement(
         const double current_timestamp, const ImuMeasurement& imu_measurement) {
+  std::cerr << "imu_measurement:" << imu_measurement.GetAccerelationX() << ", "
+            << imu_measurement.GetAccerelationY() << ", "
+            << imu_measurement.GetYawRate() << std::endl;
+
   NominalState predicted_nominal_state;
-  ErrorState predicted_error_state;
-  ErrorStateCovariance predicted_error_state_covariance;
-
-  std::cout << "   predicted_error_state(prev): "
-            << predicted_error_state.GetErrorStateVector().transpose()
-            << std::endl;
-
   PredictNominalStateByImuDeadReckoning(
       nominal_state_.GetTimestamp(), nominal_state_, current_timestamp,
       imu_measurement, &predicted_nominal_state);
+
+  ErrorState predicted_error_state;
+  ErrorStateCovariance predicted_error_state_covariance;
   PredictErrorStateByImuDeadReckoning(
       nominal_state_.GetTimestamp(), error_state_, nominal_state_,
       error_state_covariance_, current_timestamp, imu_measurement,
@@ -172,6 +171,7 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
     const double current_timestamp, const ImuMeasurement& imu_measurement,
     NominalState* predicted_nominal_state) {
   const double dt = current_timestamp - previous_timestamp;
+  std::cerr << "dt: " << dt << std::endl;
 
   const double yaw = previous_nominal_state.GetWorldYaw();
   const double cy = std::cos(yaw);
@@ -189,7 +189,10 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
 
   Vec9 derivative_of_previous_nominal_state;
   derivative_of_previous_nominal_state << v, R_world_to_imu * (am - ba),
-      gz - bg, O21, 0;
+      gz - bg, 0, O21, 0;
+
+  std::cerr << "derivative_of_previous_nominal_state: "
+            << derivative_of_previous_nominal_state.transpose() << std::endl;
 
   // TODO(@): employ RK4
   // Note: below is the Euler integration.
@@ -201,6 +204,9 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
   NominalState predicted_nominal_state_in_function(
       current_timestamp, predicted_nominal_state_vector);
   predicted_nominal_state->SetNominalState(predicted_nominal_state_in_function);
+  std::cerr << "predicted_nominal_state :"
+            << predicted_nominal_state->GetFullStateVector().transpose()
+            << std::endl;
 }
 
 void WheelImuErrorStateKalmanFilter::
@@ -214,27 +220,35 @@ void WheelImuErrorStateKalmanFilter::
         NominalState* estimated_nominal_state) {
   const Mat99& P_predicted =
       predicted_error_state_covariance.GetCovarianceMatrix();
-  const Mat22& R = wheel_encoder_measurement_noise_
-                       .GetLeftRightAngularRatesCovarianceMatrix();
-  const Vec2& z = wheel_encoder_measurement.GetLeftAndRightAngularRateVector();
+  const Mat22& R_part =
+      wheel_encoder_measurement_noise_.GetVxAndYawRateCovarianceMatrix();
+  Mat33 R{Mat33::Identity()};
+  R(0, 0) = R_part(0, 0);
+  R(1, 1) = 0.0001;
+  R(2, 2) = R_part(1, 1);
+  Vec3 z;
+  z << wheel_encoder_measurement.GetVxAtBody(), 0.0,
+      wheel_encoder_measurement.GetYawRateAtBody();
 
   const double yaw = predicted_nominal_state.GetWorldYaw();
   const double cy = std::cos(yaw);
   const double sy = std::sin(yaw);
 
-  Mat29 Hback;
+  Mat39 H;
   // clang-format off
-  Hback << 
-    O12, cy, sy, 0, 0, O12, 0,  //
+  H << 
+    O12,  cy, sy, 0, 0, O12, 0,  //
+    O12, -sy, cy, 0, 0, O12, 0,  //
     O12,    O12, 0, 1, O12, 0;
   // clang-format on
 
-  const Mat29& H = iB_ * Hback;
-  const Mat92& K = P_predicted * H.transpose() *
+  const Mat93& K = P_predicted * H.transpose() *
                    (H * P_predicted * H.transpose() + R).inverse();
-  const Mat99& P_estimated =
-      (I99 - K * H) * P_predicted * (I99 - K * H).transpose() +
-      K * R * K.transpose();
+  //   const Mat99& P_estimated =
+  //       (I99 - K * H) * P_predicted * (I99 - K * H).transpose() +
+  //       K * R * K.transpose();
+  const Mat99& P_estimated = (I99 - K * H) * P_predicted;
+
   const Vec9 dX_update_vec =
       K * (z - H * predicted_nominal_state.GetFullStateVector());
   const Vec9& dX_estimated =

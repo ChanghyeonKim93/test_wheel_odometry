@@ -178,18 +178,18 @@ int main() {
     true_yaw_rate_at_body_list.push_back(state.yaw_rate_at_body);
   }
 
-  plt::named_plot("Robot position", true_x_list,
-                  true_y_list);  // plot the x,y
-  plt::grid(true);               // show grid
-  plt::show();                   // show figure
-  plt::pause(0.001);             // show figure
+  // plt::named_plot("Robot position", true_x_list,
+  //                 true_y_list);  // plot the x,y
+  // plt::grid(true);               // show grid
+  // plt::show();                   // show figure
+  // plt::pause(0.001);             // show figure
 
-  plt::named_plot("x", true_timestamp_list, true_x_list);
-  plt::named_plot("vx", true_timestamp_list, true_vx_list);
-  plt::named_plot("ax", true_timestamp_list, true_ax_list);
-  plt::grid(true);    // show grid
-  plt::show();        // show figure
-  plt::pause(0.001);  // show figure
+  // plt::named_plot("x", true_timestamp_list, true_x_list);
+  // plt::named_plot("vx", true_timestamp_list, true_vx_list);
+  // plt::named_plot("ax", true_timestamp_list, true_ax_list);
+  // plt::grid(true);    // show grid
+  // plt::show();        // show figure
+  // plt::pause(0.001);  // show figure
 
   // Set sensor noise (wheel encoders, IMU angular rates)
   // Wheel encoders
@@ -227,6 +227,8 @@ int main() {
     double timestamp{0.0};
     double angular_velocity_of_left_wheel{0.0};
     double angular_velocity_of_right_wheel{0.0};
+    double vb{0.0};
+    double wb{0.0};
   };
   struct ImuData {
     double timestamp{0.0};
@@ -258,6 +260,8 @@ int main() {
         alar(0) + dist_wheel_encoder(gen);
     encoder_data.angular_velocity_of_right_wheel =
         alar(1) + dist_wheel_encoder(gen);
+    encoder_data.vb = state.v_at_body + dist_wheel_encoder(gen);
+    encoder_data.wb = state.yaw_rate_at_body + dist_wheel_encoder(gen);
 
     encoder_data_list.push_back(encoder_data);
   }
@@ -294,13 +298,13 @@ int main() {
     encoder_l_list.push_back(encoder_data.angular_velocity_of_left_wheel);
     encoder_r_list.push_back(encoder_data.angular_velocity_of_right_wheel);
   }
-  plt::title("Encoder data ");
-  plt::named_plot("l", encoder_time_list, encoder_l_list);
-  plt::named_plot("r", encoder_time_list, encoder_r_list);
-  plt::legend();
-  plt::grid(true);    // show grid
-  plt::show();        // show figure
-  plt::pause(0.001);  // show figure
+  // plt::title("Encoder data ");
+  // plt::named_plot("l", encoder_time_list, encoder_l_list);
+  // plt::named_plot("r", encoder_time_list, encoder_r_list);
+  // plt::legend();
+  // plt::grid(true);    // show grid
+  // plt::show();        // show figure
+  // plt::pause(0.001);  // show figure
 
   std::vector<double> imu_time_list;
   std::vector<double> imu_ax_list;
@@ -311,13 +315,13 @@ int main() {
     imu_ay_list.push_back(imu_data.acc_y);
   }
 
-  plt::title("Imu data ");
-  plt::named_plot("ax", imu_time_list, imu_ax_list);
-  plt::named_plot("ay", imu_time_list, imu_ay_list);
-  plt::legend();
-  plt::grid(true);    // show grid
-  plt::show();        // show figure
-  plt::pause(0.001);  // show figure
+  // plt::title("Imu data ");
+  // plt::named_plot("ax", imu_time_list, imu_ax_list);
+  // plt::named_plot("ay", imu_time_list, imu_ay_list);
+  // plt::legend();
+  // plt::grid(true);    // show grid
+  // plt::show();        // show figure
+  // plt::pause(0.001);  // show figure
 
   // ============================================
   // ============================================
@@ -329,6 +333,9 @@ int main() {
 
   size_t imu_index = 0;
   size_t encoder_index = 1;
+
+  std::vector<double> kf_x_list;
+  std::vector<double> kf_y_list;
   while (imu_index < imu_data_list.size() &&
          encoder_index < encoder_data_list.size()) {
     const auto& imu_data = imu_data_list[imu_index];
@@ -340,20 +347,30 @@ int main() {
 
     const auto& encoder_data = encoder_data_list[encoder_index];
     const double encoder_time = encoder_data.timestamp;
-    if (imu_time >= encoder_time) {
-      eskf.EstimateNominalStateByWheelEncoderMeasurement(
-          encoder_time,
-          WheelEncoderMeasurement(
-              encoder_time, encoder_data.angular_velocity_of_left_wheel,
-              encoder_data.angular_velocity_of_right_wheel));
-      ++encoder_index;
-    }
+    // if (imu_time >= encoder_time) {
+    //   eskf.EstimateNominalStateByWheelEncoderMeasurement(
+    //       encoder_time,
+    //       WheelEncoderMeasurement(
+    //           encoder_time, encoder_data.angular_velocity_of_left_wheel,
+    //           encoder_data.angular_velocity_of_right_wheel));
+    //   ++encoder_index;
+    // }
     ++imu_index;
 
     eskf.ShowAll();
 
     std::cout << "Index: " << encoder_index << ", " << imu_index << std::endl;
+
+    kf_x_list.push_back(eskf.GetNominalState().GetWorldPosition().x());
+    kf_y_list.push_back(eskf.GetNominalState().GetWorldPosition().y());
   }
+
+  plt::figure(0);
+  plt::named_plot("True position", true_x_list, true_y_list);
+  plt::named_plot("Dead reckoning", kf_x_list, kf_y_list);
+  plt::grid(true);
+
+  plt::show();
 
   return 0;
 }

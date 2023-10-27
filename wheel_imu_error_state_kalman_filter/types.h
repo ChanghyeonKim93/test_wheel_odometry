@@ -16,9 +16,9 @@ using Mat21 = Eigen::Matrix<double, 2, 1>;
 using Mat12 = Eigen::Matrix<double, 1, 2>;
 using Mat22 = Eigen::Matrix<double, 2, 2>;
 using Mat23 = Eigen::Matrix<double, 2, 3>;
-using Mat29 = Eigen::Matrix<double, 2, 9>;
+using Mat39 = Eigen::Matrix<double, 3, 9>;
 using Mat33 = Eigen::Matrix<double, 3, 3>;
-using Mat92 = Eigen::Matrix<double, 9, 2>;
+using Mat93 = Eigen::Matrix<double, 9, 3>;
 using Mat99 = Eigen::Matrix<double, 9, 9>;
 
 const Mat11 I11 = Mat11::Identity();
@@ -58,7 +58,10 @@ class ErrorState {
 
   // Setter
   void SetZero() { data_.setZero(); }
-  void SetErrorState(const ErrorState& rhs) { data_ = rhs.data_; }
+  void SetErrorState(const ErrorState& rhs) {
+    timestamp_ = rhs.timestamp_;
+    data_ = rhs.data_;
+  }
 
  private:
   double timestamp_;
@@ -91,7 +94,10 @@ class NominalState {
   double GetGyroZBias() const { return data_(8); }
 
   void SetZeroStateVector() { data_.setZero(); }
-  void SetNominalState(const NominalState& rhs) { data_ = rhs.data_; }
+  void SetNominalState(const NominalState& rhs) {
+    timestamp_ = rhs.timestamp_;
+    data_ = rhs.data_;
+  }
   void SetWorldPosition(const Vec2& world_position) {
     data_(0) = world_position.x();
     data_(1) = world_position.y();
@@ -213,24 +219,27 @@ class ImuMeasurement {
 
 class WheelEncoderMeasurement {
  public:
-  WheelEncoderMeasurement() : timestamp_(0.0), data_(Vec2::Zero()) {}
-  WheelEncoderMeasurement(const double timestamp,
-                          const double left_angular_rate,
-                          const double right_angular_rate)
-      : timestamp_(timestamp), data_(left_angular_rate, right_angular_rate) {}
+  WheelEncoderMeasurement()
+      : timestamp_(0.0), vx_at_body_(0.0), yaw_rate_at_body_(0.0) {}
+  WheelEncoderMeasurement(const double timestamp, const double vx_at_body,
+                          const double yaw_rate_at_body)
+      : timestamp_(timestamp),
+        vx_at_body_(vx_at_body),
+        yaw_rate_at_body_(yaw_rate_at_body) {}
   WheelEncoderMeasurement(const WheelEncoderMeasurement& rhs)
-      : timestamp_(rhs.timestamp_), data_(rhs.data_) {}
+      : timestamp_(rhs.timestamp_),
+        vx_at_body_(rhs.vx_at_body_),
+        yaw_rate_at_body_(rhs.yaw_rate_at_body_) {}
 
   // Getter
   double GetTimestamp() const { return timestamp_; }
-  double GetLeftAngularRate() const { return data_.x(); }
-  double GetRightAngularRate() const { return data_.y(); }
-  // ### Vector a_l, a_r
-  Vec2 GetLeftAndRightAngularRateVector() const { return data_; }
+  double GetVxAtBody() const { return vx_at_body_; }
+  double GetYawRateAtBody() const { return yaw_rate_at_body_; }
 
  private:
   double timestamp_;
-  Vec2 data_;  // left/right angular rates
+  double vx_at_body_;
+  double yaw_rate_at_body_;
 };
 
 class ImuMeasurementNoise {
@@ -272,27 +281,26 @@ class ImuMeasurementNoise {
 class WheelEncoderMeasurementNoise {
  public:
   WheelEncoderMeasurementNoise()
-      : left_angular_rate_noise_(0.0),
-        right_angular_rate_noise_(0.0),
+      : vx_at_body_noise_(0.0),
+        yaw_rate_at_body_noise_(0.0),
         noise_covariance_matrix_(Mat22::Zero()) {}
-  void SetLeftRightAngularRatesNoises(const double left_angular_rate_noise,
-                                      const double right_angular_rate_noise) {
-    left_angular_rate_noise_ = left_angular_rate_noise;
-    right_angular_rate_noise_ = right_angular_rate_noise;
-    noise_covariance_matrix_(0, 0) =
-        left_angular_rate_noise_ * left_angular_rate_noise_;
+  void SetVxAndYawRateNoises(const double vx_at_body_noise,
+                             const double yaw_rate_at_body_noise) {
+    vx_at_body_noise_ = vx_at_body_noise;
+    yaw_rate_at_body_noise_ = yaw_rate_at_body_noise;
+    noise_covariance_matrix_(0, 0) = vx_at_body_noise_ * vx_at_body_noise_;
     noise_covariance_matrix_(1, 1) =
-        right_angular_rate_noise_ * right_angular_rate_noise_;
+        yaw_rate_at_body_noise_ * yaw_rate_at_body_noise_;
   }
 
   // ### Matrix diag([n_al^2, n_ar^2])
-  Mat22 GetLeftRightAngularRatesCovarianceMatrix() const {
+  Mat22 GetVxAndYawRateCovarianceMatrix() const {
     return noise_covariance_matrix_;
   }
 
  private:
-  double left_angular_rate_noise_;
-  double right_angular_rate_noise_;
+  double vx_at_body_noise_;
+  double yaw_rate_at_body_noise_;
   Mat22 noise_covariance_matrix_;
 };
 

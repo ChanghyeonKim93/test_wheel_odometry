@@ -19,8 +19,8 @@ class WheelImuErrorStateKalmanFilter {
     struct {
       struct {
         struct {
-          double left_angular_rate{0.0};
-          double right_angular_rate{0.0};
+          double vx_at_body{0.0};
+          double yaw_rate_at_body{0.0};
         } wheel_encoder;
         struct {
           double acc_x{0.0};
