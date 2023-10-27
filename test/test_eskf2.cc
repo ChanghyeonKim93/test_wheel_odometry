@@ -189,8 +189,8 @@ int main() {
 
     EncoderData encoder_data;
     encoder_data.timestamp = timestamp;
-    encoder_data.vb = true_vb + dist_wheel_encoder_vb(gen);
-    encoder_data.wb = true_yaw_rate + dist_wheel_encoder_wb(gen);
+    encoder_data.vb = true_vb;        // + dist_wheel_encoder_vb(gen);
+    encoder_data.wb = true_yaw_rate;  //+ dist_wheel_encoder_wb(gen);
 
     encoder_data_list.push_back(encoder_data);
   }
@@ -243,15 +243,14 @@ int main() {
         imu_time, ImuMeasurement(imu_time, imu_data.acc_x, imu_data.acc_y,
                                  imu_data.yaw_rate));
 
-    // const auto& encoder_data = encoder_data_list[encoder_index];
-    // const double encoder_time = encoder_data.timestamp;
-    // if (imu_time >= encoder_time) {
-    //   eskf.EstimateNominalStateByWheelEncoderMeasurement(
-    //       encoder_time, WheelEncoderMeasurement(encoder_time,
-    //       encoder_data.vb,
-    //                                             encoder_data.wb));
-    //   ++encoder_index;
-    // }
+    const auto& encoder_data = encoder_data_list[encoder_index];
+    const double encoder_time = encoder_data.timestamp;
+    if (imu_time >= encoder_time) {
+      eskf.EstimateNominalStateByWheelEncoderMeasurement(
+          encoder_time, WheelEncoderMeasurement(encoder_time, encoder_data.vb,
+                                                encoder_data.wb));
+      ++encoder_index;
+    }
 
     ++imu_index;
 
