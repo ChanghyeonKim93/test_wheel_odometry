@@ -173,7 +173,7 @@ int main() {
   };
 
   std::vector<EncoderData> encoder_data_list;  // 50 Hz
-  for (size_t index = 0; index < true_x_list.size(); index += 4) {
+  for (size_t index = 0; index < true_x_list.size(); index += 8) {
     const auto timestamp = true_timestamp_list[index];
     const auto true_left_angular_rate = true_left_angular_rate_list[index];
     const auto true_right_angular_rate = true_right_angular_rate_list[index];
@@ -221,9 +221,32 @@ int main() {
   // ============================================
   // ============================================
   WheelImuErrorStateKalmanFilter::Parameters parameters;
+  parameters.initial_bias.imu.ba_x = 0.0;
+  parameters.initial_bias.imu.ba_y = 0.0;
+  parameters.initial_bias.imu.bg_z = 0.0;
+
+  parameters.noise.error_state_process.px = 0.01;
+  parameters.noise.error_state_process.py = 0.01;
+  parameters.noise.error_state_process.vx = 0.01;
+  parameters.noise.error_state_process.vy = 0.01;
+  parameters.noise.error_state_process.yaw = 0.005;
+  parameters.noise.error_state_process.yaw_rate = 0.1;
+  parameters.noise.error_state_process.ba_x = 0.00001;
+  parameters.noise.error_state_process.ba_y = 0.00001;
+  parameters.noise.error_state_process.bg_z = 0.000001;
+
+  parameters.noise.measurement.imu.ax = 0.009;
+  parameters.noise.measurement.imu.ay = 0.009;
+  parameters.noise.measurement.imu.gz = 0.0009;
+  parameters.noise.measurement.wheel_encoder.left_angular_rate = 0.001;
+  parameters.noise.measurement.wheel_encoder.right_angular_rate = 0.001;
+
+  parameters.wheeled_robot_properties.distance_between_wheels = l;
+  parameters.wheeled_robot_properties.wheel_radius_in_meter = r;
+
   WheelImuErrorStateKalmanFilter eskf(parameters);
 
-  size_t imu_index = 0;
+  size_t imu_index = 1;
   size_t encoder_index = 1;
 
   Vec9 initial_state_vector;
@@ -249,16 +272,15 @@ int main() {
         imu_time, ImuMeasurement(imu_time, imu_data.acc_x, imu_data.acc_y,
                                  imu_data.yaw_rate));
 
-    // const auto& encoder_data = encoder_data_list[encoder_index];
-    // const double encoder_time = encoder_data.timestamp;
-    // if (imu_time >= encoder_time) {
-    //   eskf.EstimateNominalStateByWheelEncoderMeasurement(
-    //       encoder_time,
-    //       WheelEncoderMeasurement(encoder_time,
-    //       encoder_data.left_angular_rate,
-    //                               encoder_data.right_angular_rate));
-    //   ++encoder_index;
-    // }
+    const auto& encoder_data = encoder_data_list[encoder_index];
+    const double encoder_time = encoder_data.timestamp;
+    if (imu_time >= encoder_time) {
+      eskf.EstimateNominalStateByWheelEncoderMeasurement(
+          encoder_time,
+          WheelEncoderMeasurement(encoder_time, encoder_data.left_angular_rate,
+                                  encoder_data.right_angular_rate));
+      ++encoder_index;
+    }
 
     ++imu_index;
 

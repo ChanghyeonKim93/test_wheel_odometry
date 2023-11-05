@@ -130,9 +130,10 @@ Mat99 WheelImuErrorStateKalmanFilter::CalculateErrorStateTransitionMatrix(
 
   const auto& am = imu_measurement.GetAccelerationVector();
   const auto& ba = nominal_state_.GetAccXYBias();
-  const Vec2 acc_compensated(am - ba);
+  const Vec2 acc_compensated = am - ba;
   Vec2 acc_compensated_cross;
-  acc_compensated_cross << acc_compensated.y(), -acc_compensated.x();
+  //   acc_compensated_cross << acc_compensated.y(), -acc_compensated.x();
+  acc_compensated_cross << -acc_compensated.y(), -acc_compensated.x();
 
   // clang-format off
   const auto& R = R_world_to_imu;
@@ -140,12 +141,21 @@ Mat99 WheelImuErrorStateKalmanFilter::CalculateErrorStateTransitionMatrix(
   Mat99 exp_F0dt{Mat99::Identity()}; 
   exp_F0dt << //
     I22, dt*I22, -0.5*R*ax*dt2, O21, -0.5*R*dt2, -1.0/6.0*R*ax*dt3,//
-    O22,    I22,      -R*ax*dt, O21,      -R*dt, -1.0/2.0*R*ax*dt3,//
+    O22,    I22,      -R*ax*dt, O21,      -R*dt, -1.0/2.0*R*ax*dt2,//
     O12,    O12,             1,   0,        O12,                dt,//
     O12,    O12,           O11,   1,        O12,                 0,//
     O22,    O22,           O21, O21,        I22,               O21,//
     O12,    O12,             0,   0,        O12,                 1;
+//   exp_F0dt <<
+//     I22, dt*I22, -0.5*R*ax*dt2, O21, O21, O21,//
+//     O22,    I22,      -R*ax*dt, O21,      -R*dt, -1.0/2.0*R*ax*dt2,//
+//     O12,    O12,             1,   0,        O12,                dt,//
+//     O12,    O12,           O11,   1,        O12,                 0,//
+//     O22,    O22,           O21, O21,        I22,               O21,//
+//     O12,    O12,             0,   0,        O12,                 1;
   // clang-format on
+
+  std::cerr << "exp_F0dt:\n" << exp_F0dt << std::endl;
 
   return exp_F0dt;
 }
@@ -178,7 +188,6 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
     const double current_timestamp, const ImuMeasurement& imu_measurement,
     NominalState* predicted_nominal_state) {
   const double dt = current_timestamp - previous_timestamp;
-  std::cerr << "dt: " << dt << std::endl;
 
   const double yaw = previous_nominal_state.GetWorldYaw();
   const double cy = std::cos(yaw);
@@ -193,6 +202,9 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
   const auto& v = previous_nominal_state.GetWorldVelocity();
   const auto& ba = previous_nominal_state.GetAccXYBias();
   const auto& bg = previous_nominal_state.GetGyroZBias();
+
+  std::cerr << "ba: " << ba.transpose() << std::endl;
+  std::cerr << "bg: " << bg << std::endl;
 
   Vec9 derivative_of_previous_nominal_state;
   derivative_of_previous_nominal_state << v, R_world_to_imu * (am - ba),
@@ -244,20 +256,24 @@ void WheelImuErrorStateKalmanFilter::
     O12, 2.0/r_*cy, 2.0/r_*sy, 0, -l_/r_, O12, 0,  //
     O12, 2.0/r_*cy, 2.0/r_*sy, 0,  l_/r_, O12, 0;
   // clang-format on
+  Vec2 z_hat = H * predicted_nominal_state.GetFullStateVector();
 
-  const Mat92& K = P_predicted * H.transpose() *
-                   (H * P_predicted * H.transpose() + R).inverse();
-  //   const Mat99& P_estimated =
-  //       (I99 - K * H) * P_predicted * (I99 - K * H).transpose() +
-  //       K * R * K.transpose();
-  const Mat99& P_estimated = (I99 - K * H) * P_predicted;
+  std::cerr << "z    : " << z.transpose() << std::endl;
+  std::cerr << "z_hat: " << z_hat.transpose() << std::endl;
+  std::cerr << "R:\n" << R << std::endl;
 
-  const Vec9 dX_update_vec =
-      K * (z - H * predicted_nominal_state.GetFullStateVector());
-  const Vec9& dX_estimated =
+  const Mat92 K = P_predicted * H.transpose() *
+                  (H * P_predicted * H.transpose() + R).inverse();
+  const Mat99 P_estimated =
+      (I99 - K * H) * P_predicted * (I99 - K * H).transpose() +
+      K * R * K.transpose();
+  //   const Mat99& P_estimated = (I99 - K * H) * P_predicted;
+
+  const Vec9 dX_update_vec = K * (z - z_hat);
+  const Vec9 dX_estimated =
       predicted_error_state.GetErrorStateVector() + dX_update_vec;
 
-  const Vec9& X_estimated =
+  const Vec9 X_estimated =
       predicted_nominal_state.GetFullStateVector() + dX_estimated;
 
   *reset_error_state =

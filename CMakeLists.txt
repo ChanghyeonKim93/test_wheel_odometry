@@ -28,6 +28,9 @@ target_link_libraries(test_data_plot ${Eigen3_LIBRARIES} python3.8)
 add_executable(test_kf test/test_kf.cc ${SRC})
 target_link_libraries(test_kf ${Eigen3_LIBRARIES} python3.8)
 
+add_executable(test_kf_wheel_angular_rate test/test_kf_wheel_angular_rate.cc ${SRC})
+target_link_libraries(test_kf_wheel_angular_rate ${Eigen3_LIBRARIES} python3.8)
+
 add_executable(test_kf_with_acc test/test_kf_with_acc.cc ${SRC})
 target_link_libraries(test_kf_with_acc ${Eigen3_LIBRARIES} python3.8)
 

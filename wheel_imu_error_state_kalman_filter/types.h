@@ -291,6 +291,7 @@ class WheelEncoderMeasurementNoise {
                                         const double right_angular_rate_noise) {
     left_angular_rate_noise_ = left_angular_rate_noise;
     right_angular_rate_noise_ = right_angular_rate_noise;
+    noise_covariance_matrix_.setZero();
     noise_covariance_matrix_(0, 0) =
         left_angular_rate_noise_ * left_angular_rate_noise_;
     noise_covariance_matrix_(1, 1) =
