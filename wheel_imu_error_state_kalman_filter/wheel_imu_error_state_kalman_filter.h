@@ -13,38 +13,38 @@ class WheelImuErrorStateKalmanFilter {
  public:
   struct Parameters {
     struct {
-      double wheel_radius_in_meter{0.075};  // [m]
-      double distance_between_wheels{0.5};  // [m]
+      double wheel_radius_in_meter{0.075};  // r [m]
+      double distance_between_wheels{0.5};  // l [m]
     } wheeled_robot_properties;
     struct {
       struct {
         struct {
-          double vx_at_body{0.0};
-          double yaw_rate_at_body{0.0};
+          double left_angular_rate{0.0};   // alpha_l [rad/s]
+          double right_angular_rate{0.0};  // alpha_r [rad/s]
         } wheel_encoder;
         struct {
-          double acc_x{0.0};
-          double acc_y{0.0};
-          double gyro_z{0.0};
+          double ax{0.0};  // am_x [m/s^2]
+          double ay{0.0};  // am_y [m/s^2]
+          double gz{0.0};  // gm_z [rad/s]
         } imu;
       } measurement;
       struct {
-        double position_x{0.001};
-        double position_y{0.001};
-        double velocity_x{0.002};
-        double velocity_y{0.002};
+        double px{0.001};
+        double py{0.001};
+        double vx{0.002};
+        double vy{0.002};
         double yaw{0.001};
         double yaw_rate{0.001};
-        double acc_bias_x{1e-5};
-        double acc_bias_y{1e-5};
-        double gyro_bias_z{1e-5};
+        double ba_x{1e-5};
+        double ba_y{1e-5};
+        double bg_z{1e-5};
       } error_state_process;
     } noise;
     struct {
       struct {
-        double acc_x_bias{0.0};   // [m/s^2]
-        double acc_y_bias{0.0};   // [m/s^2]
-        double gyro_z_bias{0.0};  // [rad/s]
+        double ba_x{0.0};  // [m/s^2]
+        double ba_y{0.0};  // [m/s^2]
+        double bg_z{0.0};  // [rad/s]
       } imu;
     } initial_bias;
     struct {
@@ -61,6 +61,8 @@ class WheelImuErrorStateKalmanFilter {
 
   void Reset();
 
+  void SetInitialNominalState(const double current_timestamp,
+                              const Vec9& initial_state_vector);
   void PredictNominalAndErrorStatesByImuMeasurement(
       const double current_timestamp, const ImuMeasurement& imu_measurement);
   void EstimateNominalStateByWheelEncoderMeasurement(
@@ -113,8 +115,8 @@ class WheelImuErrorStateKalmanFilter {
   ImuMeasurementNoise imu_measurement_noise_;
 
  private:  // robot kinematics
-  Mat22 B_;
-  Mat22 iB_;
+  double l_;
+  double r_;
 };
 
 }  // namespace error_state_kalman_filter

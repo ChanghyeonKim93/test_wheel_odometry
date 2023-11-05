@@ -16,8 +16,10 @@ using Mat21 = Eigen::Matrix<double, 2, 1>;
 using Mat12 = Eigen::Matrix<double, 1, 2>;
 using Mat22 = Eigen::Matrix<double, 2, 2>;
 using Mat23 = Eigen::Matrix<double, 2, 3>;
+using Mat29 = Eigen::Matrix<double, 2, 9>;
 using Mat39 = Eigen::Matrix<double, 3, 9>;
 using Mat33 = Eigen::Matrix<double, 3, 3>;
+using Mat92 = Eigen::Matrix<double, 9, 2>;
 using Mat93 = Eigen::Matrix<double, 9, 3>;
 using Mat99 = Eigen::Matrix<double, 9, 9>;
 
@@ -220,26 +222,27 @@ class ImuMeasurement {
 class WheelEncoderMeasurement {
  public:
   WheelEncoderMeasurement()
-      : timestamp_(0.0), vx_at_body_(0.0), yaw_rate_at_body_(0.0) {}
-  WheelEncoderMeasurement(const double timestamp, const double vx_at_body,
-                          const double yaw_rate_at_body)
+      : timestamp_(0.0), left_angular_rate_(0.0), right_angular_rate_(0.0) {}
+  WheelEncoderMeasurement(const double timestamp,
+                          const double left_angular_rate,
+                          const double right_angular_rate)
       : timestamp_(timestamp),
-        vx_at_body_(vx_at_body),
-        yaw_rate_at_body_(yaw_rate_at_body) {}
+        left_angular_rate_(left_angular_rate),
+        right_angular_rate_(right_angular_rate) {}
   WheelEncoderMeasurement(const WheelEncoderMeasurement& rhs)
       : timestamp_(rhs.timestamp_),
-        vx_at_body_(rhs.vx_at_body_),
-        yaw_rate_at_body_(rhs.yaw_rate_at_body_) {}
+        left_angular_rate_(rhs.left_angular_rate_),
+        right_angular_rate_(rhs.right_angular_rate_) {}
 
   // Getter
   double GetTimestamp() const { return timestamp_; }
-  double GetVxAtBody() const { return vx_at_body_; }
-  double GetYawRateAtBody() const { return yaw_rate_at_body_; }
+  double GetLeftAngularRate() const { return left_angular_rate_; }
+  double GetRightAngularRate() const { return right_angular_rate_; }
 
  private:
   double timestamp_;
-  double vx_at_body_;
-  double yaw_rate_at_body_;
+  double left_angular_rate_;
+  double right_angular_rate_;
 };
 
 class ImuMeasurementNoise {
@@ -281,26 +284,27 @@ class ImuMeasurementNoise {
 class WheelEncoderMeasurementNoise {
  public:
   WheelEncoderMeasurementNoise()
-      : vx_at_body_noise_(0.0),
-        yaw_rate_at_body_noise_(0.0),
+      : left_angular_rate_noise_(0.0),
+        right_angular_rate_noise_(0.0),
         noise_covariance_matrix_(Mat22::Zero()) {}
-  void SetVxAndYawRateNoises(const double vx_at_body_noise,
-                             const double yaw_rate_at_body_noise) {
-    vx_at_body_noise_ = vx_at_body_noise;
-    yaw_rate_at_body_noise_ = yaw_rate_at_body_noise;
-    noise_covariance_matrix_(0, 0) = vx_at_body_noise_ * vx_at_body_noise_;
+  void SetLeftAndRightAngularRateNoises(const double left_angular_rate_noise,
+                                        const double right_angular_rate_noise) {
+    left_angular_rate_noise_ = left_angular_rate_noise;
+    right_angular_rate_noise_ = right_angular_rate_noise;
+    noise_covariance_matrix_(0, 0) =
+        left_angular_rate_noise_ * left_angular_rate_noise_;
     noise_covariance_matrix_(1, 1) =
-        yaw_rate_at_body_noise_ * yaw_rate_at_body_noise_;
+        right_angular_rate_noise_ * right_angular_rate_noise_;
   }
 
   // ### Matrix diag([n_al^2, n_ar^2])
-  Mat22 GetVxAndYawRateCovarianceMatrix() const {
+  Mat22 GetLeftAndRightAngularRateCovarianceMatrix() const {
     return noise_covariance_matrix_;
   }
 
  private:
-  double vx_at_body_noise_;
-  double yaw_rate_at_body_noise_;
+  double left_angular_rate_noise_;
+  double right_angular_rate_noise_;
   Mat22 noise_covariance_matrix_;
 };
 

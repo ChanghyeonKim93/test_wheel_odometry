@@ -114,8 +114,8 @@ int main() {
   state.yaw_rate_at_body = yaw_rate_at_world_list[0];
   const auto vb = state.v_at_body;
   const auto wb = state.yaw_rate_at_body;
-  state.left_angular_velocity = 1.0 / r * vb - l / (2.0 * r) * wb;
-  state.right_angular_velocity = 1.0 / r * vb + l / (2.0 * r) * wb;
+  state.left_angular_velocity = 2.0 / r * vb - l / r * wb;
+  state.right_angular_velocity = 2.0 / r * vb + l / r * wb;
   all_state_list.push_back(state);
   for (size_t index = 0; index < timestamp_list.size() - 1; ++index) {
     const double t_next = timestamp_list[index + 1];
@@ -157,8 +157,8 @@ int main() {
 
     const auto vb = next_state.v_at_body;
     const auto wb = next_state.yaw_rate_at_body;
-    next_state.left_angular_velocity = 1.0 / r * vb - l / (2.0 * r) * wb;
-    next_state.right_angular_velocity = 1.0 / r * vb + l / (2.0 * r) * wb;
+    next_state.left_angular_velocity = 2.0 / r * vb - l / r * wb;
+    next_state.right_angular_velocity = 2.0 / r * vb + l / r * wb;
 
     all_state_list.push_back(next_state);
   }

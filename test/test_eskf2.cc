@@ -136,17 +136,11 @@ int main() {
 
   // Set sensor noise (wheel encoders, IMU angular rates)
   // Wheel encoders
-  const double pulse_per_revolution = 19.0 * 49.0 * 4.0;
-  const double dt_encoder = 0.01;  // 10 ms
+  const double pulse_per_revolution = 4096.0;
+  const double dt_encoder = 0.02;  // 20 ms
   const double pulse_error = 1.0;  // 1 pulse error
   const double noise_encoder =
       2.0 * M_PI * pulse_error / pulse_per_revolution / dt_encoder;  // rad/s
-  double noise_body_velocity_by_encoder =
-      (noise_encoder * r + noise_encoder * r) / 2.0;
-  double noise_body_yaw_rate_by_encoder =
-      (noise_encoder * r + noise_encoder * r) / l;
-  noise_body_velocity_by_encoder = 0.02;
-  noise_body_yaw_rate_by_encoder = 0.01;
 
   // IMU
   const double acc_noise_spectral_density = 0.1;    //
@@ -161,18 +155,15 @@ int main() {
 
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::normal_distribution<double> dist_wheel_encoder_vb(
-      0.0, noise_body_velocity_by_encoder);
-  std::normal_distribution<double> dist_wheel_encoder_wb(
-      0.0, noise_body_yaw_rate_by_encoder);
+  std::normal_distribution<double> dist_wheel_encoder(0.0, noise_encoder);
   std::normal_distribution<double> dist_acc(0.0, noise_acc);
   std::normal_distribution<double> dist_yaw_rate(0.0, 0.001);
 
   // Generate sensor data list
   struct EncoderData {
     double timestamp{0.0};
-    double vb{0.0};
-    double wb{0.0};
+    double left_angular_rate{0.0};
+    double right_angular_rate{0.0};
   };
   struct ImuData {
     double timestamp{0.0};
@@ -184,13 +175,15 @@ int main() {
   std::vector<EncoderData> encoder_data_list;  // 50 Hz
   for (size_t index = 0; index < true_x_list.size(); index += 4) {
     const auto timestamp = true_timestamp_list[index];
-    const auto true_vb = true_v_at_body_list[index];
-    const auto true_yaw_rate = true_yaw_rate_list[index];
+    const auto true_left_angular_rate = true_left_angular_rate_list[index];
+    const auto true_right_angular_rate = true_right_angular_rate_list[index];
 
     EncoderData encoder_data;
     encoder_data.timestamp = timestamp;
-    encoder_data.vb = true_vb;        // + dist_wheel_encoder_vb(gen);
-    encoder_data.wb = true_yaw_rate;  //+ dist_wheel_encoder_wb(gen);
+    encoder_data.left_angular_rate =
+        true_left_angular_rate;  // + dist_wheel_encoder_vb(gen);
+    encoder_data.right_angular_rate =
+        true_right_angular_rate;  //+ dist_wheel_encoder_wb(gen);
 
     encoder_data_list.push_back(encoder_data);
   }
@@ -214,9 +207,10 @@ int main() {
 
     ImuData imu_data;
     imu_data.timestamp = timestamp;
-    imu_data.acc_x = axay_at_body.x() + dist_acc(gen) + bias_acc_x;
-    imu_data.acc_y = axay_at_body.y() + dist_acc(gen) + bias_acc_y;
-    imu_data.yaw_rate = true_yaw_rate + dist_yaw_rate(gen) + bias_gyro_yaw_rate;
+    imu_data.acc_x = axay_at_body.x() + bias_acc_x;  // + dist_acc(gen);
+    imu_data.acc_y = axay_at_body.y() + bias_acc_y;  // + dist_acc(gen);
+    imu_data.yaw_rate =
+        true_yaw_rate + bias_gyro_yaw_rate;  //+ dist_yaw_rate(gen);
 
     imu_data_list.push_back(imu_data);
   }
@@ -232,6 +226,18 @@ int main() {
   size_t imu_index = 0;
   size_t encoder_index = 1;
 
+  Vec9 initial_state_vector;
+  initial_state_vector(0) = true_x_list[0];
+  initial_state_vector(1) = true_y_list[0];
+  initial_state_vector(2) = true_vx_list[0];
+  initial_state_vector(3) = true_vy_list[0];
+  initial_state_vector(4) = true_yaw_list[0];
+  initial_state_vector(5) = true_yaw_rate_list[0];
+  initial_state_vector(6) = 0.0;
+  initial_state_vector(7) = 0.0;
+  initial_state_vector(8) = 0.0;
+  eskf.SetInitialNominalState(0, initial_state_vector);
+
   std::vector<double> kf_x_list;
   std::vector<double> kf_y_list;
   while (imu_index < imu_data_list.size() &&
@@ -243,14 +249,16 @@ int main() {
         imu_time, ImuMeasurement(imu_time, imu_data.acc_x, imu_data.acc_y,
                                  imu_data.yaw_rate));
 
-    const auto& encoder_data = encoder_data_list[encoder_index];
-    const double encoder_time = encoder_data.timestamp;
-    if (imu_time >= encoder_time) {
-      eskf.EstimateNominalStateByWheelEncoderMeasurement(
-          encoder_time, WheelEncoderMeasurement(encoder_time, encoder_data.vb,
-                                                encoder_data.wb));
-      ++encoder_index;
-    }
+    // const auto& encoder_data = encoder_data_list[encoder_index];
+    // const double encoder_time = encoder_data.timestamp;
+    // if (imu_time >= encoder_time) {
+    //   eskf.EstimateNominalStateByWheelEncoderMeasurement(
+    //       encoder_time,
+    //       WheelEncoderMeasurement(encoder_time,
+    //       encoder_data.left_angular_rate,
+    //                               encoder_data.right_angular_rate));
+    //   ++encoder_index;
+    // }
 
     ++imu_index;
 
@@ -263,7 +271,7 @@ int main() {
   }
 
   plt::figure(0);
-  plt::named_plot("True position", true_x_list, true_y_list);
+  plt::named_plot("True position", true_x_list, true_y_list, "r--");
   plt::named_plot("Dead reckoning", kf_x_list, kf_y_list);
   plt::grid(true);
 

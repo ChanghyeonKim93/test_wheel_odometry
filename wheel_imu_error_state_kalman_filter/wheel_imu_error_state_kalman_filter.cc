@@ -14,46 +14,45 @@ WheelImuErrorStateKalmanFilter::WheelImuErrorStateKalmanFilter(
 
   // Initialize Nominal State
   const auto& imu_bias = parameters_.initial_bias.imu;
-  nominal_state_.SetAccXYBias({imu_bias.acc_x_bias, imu_bias.acc_y_bias});
-  nominal_state_.SetGyroZBias(imu_bias.gyro_z_bias);
+  nominal_state_.SetAccXYBias({imu_bias.ba_x, imu_bias.ba_y});
+  nominal_state_.SetGyroZBias(imu_bias.bg_z);
 
   // Initialize Error Covariance Matrix
-  error_state_covariance_.SetCovarianceMatrix(Mat99::Identity() * 0.5);
+  error_state_covariance_.SetCovarianceMatrix(Mat99::Identity() * 10.5);
 
   // Initialize Error State Process Noises
   const auto& initial_error_state_process_noise =
       parameters_.noise.error_state_process;
   error_state_process_noise_.SetPositionErrorProcessNoise(
-      {initial_error_state_process_noise.position_x,
-       initial_error_state_process_noise.position_y});
+      {initial_error_state_process_noise.px,
+       initial_error_state_process_noise.py});
   error_state_process_noise_.SetVelocityErrorProcessNoise(
-      {initial_error_state_process_noise.velocity_x,
-       initial_error_state_process_noise.velocity_y});
+      {initial_error_state_process_noise.vx,
+       initial_error_state_process_noise.vy});
   error_state_process_noise_.SetYawErrorProcessNoise(
       initial_error_state_process_noise.yaw);
   error_state_process_noise_.SetYawRateErrorProcessNoise(
       initial_error_state_process_noise.yaw_rate);
   error_state_process_noise_.SetAccXYBiasErrorProcessNoise(
-      {initial_error_state_process_noise.acc_bias_x,
-       initial_error_state_process_noise.acc_bias_y});
+      {initial_error_state_process_noise.ba_x,
+       initial_error_state_process_noise.ba_y});
   error_state_process_noise_.SetGyroZBiasErrorProcessNoise(
-      initial_error_state_process_noise.gyro_bias_z);
+      initial_error_state_process_noise.bg_z);
 
   // Initialize Imu Measurement Noises
   const auto& imu_noise = parameters_.noise.measurement.imu;
-  imu_measurement_noise_.SetAccXYNoise(imu_noise.acc_x, imu_noise.acc_y);
-  imu_measurement_noise_.SetGyroZNoise(imu_noise.gyro_z);
+  imu_measurement_noise_.SetAccXYNoise(imu_noise.ax, imu_noise.ay);
+  imu_measurement_noise_.SetGyroZNoise(imu_noise.gz);
 
   // Initialize Wheel Encoder Measurement Noises
   const auto& wheel_encoder_noise = parameters_.noise.measurement.wheel_encoder;
-  wheel_encoder_measurement_noise_.SetVxAndYawRateNoises(
-      wheel_encoder_noise.vx_at_body, wheel_encoder_noise.yaw_rate_at_body);
+  wheel_encoder_measurement_noise_.SetLeftAndRightAngularRateNoises(
+      wheel_encoder_noise.left_angular_rate,
+      wheel_encoder_noise.right_angular_rate);
 
   // Initialize wheel odometer kinematics
-  const double l = parameters_.wheeled_robot_properties.distance_between_wheels;
-  const double r = parameters_.wheeled_robot_properties.wheel_radius_in_meter;
-  B_ << r / 2.0, r / 2.0, -r / l, r / l;
-  iB_ << 2.0 / r, -l / r, 2.0 / r, l / r;
+  l_ = parameters_.wheeled_robot_properties.distance_between_wheels;
+  r_ = parameters_.wheeled_robot_properties.wheel_radius_in_meter;
 
   std::cerr << "Wheel-IMU error state Kalman filter is constructed.\n";
 }
@@ -62,12 +61,18 @@ void WheelImuErrorStateKalmanFilter::Reset() {
   // TODO(@): implement reset
 }
 
+void WheelImuErrorStateKalmanFilter::SetInitialNominalState(
+    const double current_timestamp, const Vec9& initial_state_vector) {
+  nominal_state_ = NominalState(current_timestamp, initial_state_vector);
+}
+
 void WheelImuErrorStateKalmanFilter::
     PredictNominalAndErrorStatesByImuMeasurement(
         const double current_timestamp, const ImuMeasurement& imu_measurement) {
-  std::cerr << "imu_measurement:" << imu_measurement.GetAccerelationX() << ", "
-            << imu_measurement.GetAccerelationY() << ", "
-            << imu_measurement.GetYawRate() << std::endl;
+  //   std::cerr << "imu_measurement:" << imu_measurement.GetAccerelationX() <<
+  //   ", "
+  //             << imu_measurement.GetAccerelationY() << ", "
+  //             << imu_measurement.GetYawRate() << std::endl;
 
   NominalState predicted_nominal_state;
   PredictNominalStateByImuDeadReckoning(
@@ -87,6 +92,8 @@ void WheelImuErrorStateKalmanFilter::
 
   std::cout << "   predicted_error_state(after): "
             << error_state_.GetErrorStateVector().transpose() << std::endl;
+  std::cout << "   predicted_error_state cov(after):\n"
+            << error_state_covariance_.GetCovarianceMatrix() << std::endl;
 }
 
 void WheelImuErrorStateKalmanFilter::
@@ -191,8 +198,9 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
   derivative_of_previous_nominal_state << v, R_world_to_imu * (am - ba),
       gz - bg, 0, O21, 0;
 
-  std::cerr << "derivative_of_previous_nominal_state: "
-            << derivative_of_previous_nominal_state.transpose() << std::endl;
+  //   std::cerr << "derivative_of_previous_nominal_state: "
+  //             << derivative_of_previous_nominal_state.transpose() <<
+  //             std::endl;
 
   // TODO(@): employ RK4
   // Note: below is the Euler integration.
@@ -204,9 +212,9 @@ void WheelImuErrorStateKalmanFilter::PredictNominalStateByImuDeadReckoning(
   NominalState predicted_nominal_state_in_function(
       current_timestamp, predicted_nominal_state_vector);
   predicted_nominal_state->SetNominalState(predicted_nominal_state_in_function);
-  std::cerr << "predicted_nominal_state :"
-            << predicted_nominal_state->GetFullStateVector().transpose()
-            << std::endl;
+  //   std::cerr << "predicted_nominal_state :"
+  //             << predicted_nominal_state->GetFullStateVector().transpose()
+  //             << std::endl;
 }
 
 void WheelImuErrorStateKalmanFilter::
@@ -220,29 +228,24 @@ void WheelImuErrorStateKalmanFilter::
         NominalState* estimated_nominal_state) {
   const Mat99& P_predicted =
       predicted_error_state_covariance.GetCovarianceMatrix();
-  const Mat22& R_part =
-      wheel_encoder_measurement_noise_.GetVxAndYawRateCovarianceMatrix();
-  Mat33 R{Mat33::Identity()};
-  R(0, 0) = R_part(0, 0);
-  R(1, 1) = 0.0001;
-  R(2, 2) = R_part(1, 1);
-  Vec3 z;
-  z << wheel_encoder_measurement.GetVxAtBody(), 0.0,
-      wheel_encoder_measurement.GetYawRateAtBody();
+  const Mat22& R = wheel_encoder_measurement_noise_
+                       .GetLeftAndRightAngularRateCovarianceMatrix();
+  Vec2 z;
+  z << wheel_encoder_measurement.GetLeftAngularRate(),
+      wheel_encoder_measurement.GetRightAngularRate();
 
   const double yaw = predicted_nominal_state.GetWorldYaw();
   const double cy = std::cos(yaw);
   const double sy = std::sin(yaw);
 
-  Mat39 H;
+  Mat29 H;
   // clang-format off
   H << 
-    O12,  cy, sy, 0, 0, O12, 0,  //
-    O12, -sy, cy, 0, 0, O12, 0,  //
-    O12,    O12, 0, 1, O12, 0;
+    O12, 2.0/r_*cy, 2.0/r_*sy, 0, -l_/r_, O12, 0,  //
+    O12, 2.0/r_*cy, 2.0/r_*sy, 0,  l_/r_, O12, 0;
   // clang-format on
 
-  const Mat93& K = P_predicted * H.transpose() *
+  const Mat92& K = P_predicted * H.transpose() *
                    (H * P_predicted * H.transpose() + R).inverse();
   //   const Mat99& P_estimated =
   //       (I99 - K * H) * P_predicted * (I99 - K * H).transpose() +
